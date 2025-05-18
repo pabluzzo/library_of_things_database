@@ -4,3 +4,14 @@
 - What I learned:
 - Which resources did I use:
 
+- Date of entry: 13-05-2025
+- What I’ve worked on: Creating a basic version of my database's schema, reading tkinter documentation to get started.
+- What problems I encountered: I couldn't install cs50's library with conda, so I found out python has an sqlite3 library by default.
+- What I learned:
+- Which resources did I use: tkdocs.com
+
+- Date of entry: 18-05-2025
+- What I’ve worked on: Developed basic functions to interact with the database. Developed a basic command line interface to quickly test my functions.
+- What problems I encountered: Some functions would not work, database would get locked.
+- What I learned: I learned how to use the python SQL library some more, as I wrongly assumed the syntax was the same as cs50's and that's why my code was not working. It was also my first time creating a command line interface.
+- Which resources did I use: python3 sqlite3 library, stackoverflow, https://medium.com/@abelzerihun/understanding-parameterized-queries-3c4d81acbf41.

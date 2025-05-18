@@ -8,8 +8,8 @@ CREATE TABLE people (
 CREATE TABLE items (
     id INTEGER,
     name TEXT,
-    note TEXT,
     state TEXT,
+    note TEXT,
     PRIMARY KEY(id)
 );
 CREATE TABLE location (
