@@ -1,14 +1,13 @@
 import sqlite3
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox
+
+con = sqlite3.connect("library.db", timeout = 5)
+cur = con.cursor()
 
 def main():
-    con = sqlite3.connect("library.db", timeout = 5)
-    cur = con.cursor()
 
     main_menu()
-
     con.close()
 
 """
@@ -43,23 +42,23 @@ def get_datum(table, column, id):
     Returns one datapoint in a table where an "id" field is present, i.e. people, items.
     """
     cur.execute(f"SELECT {column} FROM {table} WHERE id = ?", (id,))
-    return cur.fetchall()
+    return cur.fetchall()[0][0] # i have to specify [0][0] because for some reason it returns it as a tuple within a list
 
 def get_person_data(id):
     name = get_datum("people", "name", id)
     contact = get_datum("people", "contact", id)
     note = get_datum("people", "note", id)
-    currently_borrowing = cur.execute("SELECT item_id FROM location WHERE person_id = ?", (id,)).fetchone()
-    owned_items = cur.execute("SELECT item_id FROM ownership WHERE person_id = ?", (id,)).fetchone()
-    return id, name, contact, note, currently_borrowing, owned_items
+    currently_borrowing = cur.execute("SELECT item_id FROM location WHERE person_id = ?", (id,)).fetchall()
+    owned_items = cur.execute("SELECT item_id FROM ownership WHERE person_id = ?", (id,)).fetchall()
+    return id, name, contact, currently_borrowing, owned_items, note
 
 def get_item_data(id):
     name = get_datum("items", "name", id)
     state = get_datum("items", "state", id)
     note = get_datum("items", "note", id)
-    current_location = cur.execute("SELECT person_id FROM location WHERE item_id = ?", (id,)).fetchone()
-    owner = cur.execute("SELECT person_id FROM ownership WHERE item_id = ?", (id,)).fetchone()
-    return id, name, state, note, current_location, owner
+    current_location = cur.execute("SELECT person_id FROM location WHERE item_id = ?", (id,)).fetchone()[0]
+    owner = cur.execute("SELECT person_id FROM ownership WHERE item_id = ?", (id,)).fetchone()[0]
+    return id, name, state, current_location, owner, note
 
 def commandline_menu():
     """
@@ -168,9 +167,7 @@ Your answer: """))
             print("Action hopefully achieved!")
             menu = 0
 
-"""
-Application functions
-"""
+
 def items_menu():
         itemsmenu = tk.Toplevel()
         itemsmenu.title("Items menu")
@@ -178,35 +175,27 @@ def items_menu():
         itemsmenu.grid_columnconfigure(0, weight=1)
         itemsmenu.grid_rowconfigure(0, weight=1)
 
-        #menu_item_id = tk.StringVar()
-        #menu_item_id.set("Item ID:\nn/a")
-        menu_item_name = tk.StringVar()
-        menu_item_name.set("No item selected")
-        menu_item_state = tk.StringVar()
-        menu_item_state.set("State: n/a")
-        menu_item_location = tk.StringVar()
-        menu_item_location.set("Location: n/a")
-        menu_item_owner = tk.StringVar()
-        menu_item_owner.set("Owner: n/a")
-        menu_item_note = tk.StringVar()
-        menu_item_note.set("Note: n/a")
-        search = tk.StringVar()
-
         itemsframe = ttk.Frame(itemsmenu, padding="10")
         itemsframe.grid(column=0, row=0, sticky="nwes")
-        itemsframe.grid_columnconfigure(1, weight=1)
         for i in range(5):
             itemsframe.grid_columnconfigure(i, weight=1)
+
+        itemsframe.grid_columnconfigure(0, weight=0, minsize=200)
+        itemsframe.grid_columnconfigure(1, weight=0, minsize=100)
+        itemsframe.grid_columnconfigure(2, weight=0, minsize=50)
+        itemsframe.grid_columnconfigure(3, weight=0, minsize=50)
+        itemsframe.grid_columnconfigure(4, weight=0, minsize=150)
+        itemsframe.grid_columnconfigure(5, weight=0, minsize=100)
 
         # row 0 widgets
         ttk.Label(itemsframe, text="Items database", font=("Helvetica", 15)).grid(row=0, column=0)
         ttk.Button(itemsframe, text="+ New item").grid(row=0, column=1)
         ttk.Label(itemsframe, text="Name:").grid(row=0, column=3, sticky="sw")
         ttk.Button(itemsframe, text="edit").grid(row=0, column=4, sticky="sw")
-        #ttk.Label(itemsframe, textvariable=menu_item_id, anchor="center").grid(row=0, column=5)
         tk.Button(itemsframe, text="Delete\nitem", fg="red", anchor="center").grid(row=0, column=5, sticky="s")
 
         # search box & functions for placeholder "Search..." text
+        search = tk.StringVar()
         def on_entry_click(event):
             if search_box.get() == "Search...":
                 search_box.delete(0, tk.END)
@@ -223,26 +212,28 @@ def items_menu():
         search_box.bind("<FocusOut>", on_focus_out)
 
         # other row 1 widgets
+        # NOTE make name widget not wrap around but change font size?
         ttk.Button(itemsframe, text="Filters").grid(row=1, column=1)
-        tk.Label(itemsframe, textvariable=menu_item_name, font=("Helvetica", 30), wraplength=400).grid(row=1, column=3, columnspan=3)
+        item_name_widget = tk.Label(itemsframe, font=("Helvetica", 25), wraplength=300)
+        item_name_widget.grid(row=1, column=3, columnspan=3)
 
-        # Database listbox
-        tk.Listbox(itemsframe).grid(row=2, column=0, columnspan=2, rowspan=5, sticky="nwes")
+        items_list = tk.Listbox(itemsframe)
+        items_list.grid(row=2, column=0, columnspan=2, rowspan=5, sticky="nwes")
 
-        # Item state
-        ttk.Label(itemsframe, textvariable=menu_item_state, anchor="w").grid(row=2, column=3, columnspan=2, sticky="w")
+        item_state_widget = ttk.Label(itemsframe, anchor="w")
+        item_state_widget.grid(row=2, column=3, columnspan=2, sticky="w")
         ttk.Button(itemsframe, text="edit").grid(row=2, column=5)
 
-        # Item location
-        ttk.Label(itemsframe, textvariable=menu_item_location, anchor="w").grid(row=3, column=3, columnspan=2, sticky="w")
+        item_location_widget = ttk.Label(itemsframe, anchor="w")
+        item_location_widget.grid(row=3, column=3, columnspan=2, sticky="w")
         ttk.Button(itemsframe, text="edit").grid(row=3, column=5)
 
-        # Item owner
-        ttk.Label(itemsframe, textvariable=menu_item_owner, anchor="w").grid(row=4, column=3, columnspan=2, sticky="w")
+        item_owner_widget = ttk.Label(itemsframe, anchor="w")
+        item_owner_widget.grid(row=4, column=3, columnspan=2, sticky="w")
         ttk.Button(itemsframe, text="edit").grid(row=4, column=5)
 
-        #Item note
-        ttk.Label(itemsframe, textvariable=menu_item_note, anchor="w", justify="left", wraplength=300).grid(row=5, column=3, columnspan=2, sticky="w")
+        item_note_widget = ttk.Label(itemsframe, anchor="w", justify="left", wraplength=200)
+        item_note_widget.grid(row=5, column=3, columnspan=2, sticky="w")
         ttk.Button(itemsframe, text="edit").grid(row=5, column=5)
 
         # ui polishing
@@ -253,6 +244,73 @@ def items_menu():
             child.grid_configure(padx=5, pady=5)
         ttk.Separator(itemsframe, orient="vertical").grid(row=0, column=2, rowspan=7, sticky="ns")
 
+
+        """
+        ITEMS MENU FUNCTIONS
+        """
+
+        def load_itemsa():
+            """
+            Refreshes the contents of the item listbox
+            """
+            items_list.delete(0, tk.END)
+            cur.execute("SELECT * FROM items ORDER BY name")
+            items = cur.fetchall()
+            for row in items:
+                # inserts item name and ID in the listbox. ID is included because I could not think of
+                # a better way to later retrieve it when the user selects the item from the listbox, as
+                # the name by itself is not sufficient because it might not be unique in the database.
+                items_list.insert(tk.END, [row[1], f"(ID:{row[0]})"])
+
+        def load_item_data(event=None):
+            """
+            Updates UI labels when a new item is selected
+            """
+            try:
+                selection = event.widget.curselection()
+            except:
+                pass
+
+
+            if 'selection' in locals():
+                # get all item data through the item's ID
+                item_data = get_item_data(event.widget.get(selection[0])[1].strip("(ID: )"))
+
+                # update widgets based on each item datum
+                item_name_widget.configure(text=item_data[1])
+                item_state_widget.configure(text=f"State: {item_data[2]}")
+                item_location_widget.configure(text=f"Location: {get_person_data(item_data[3])[1]} (ID: {item_data[3]})")
+                item_owner_widget.configure(text=f"Owner: {get_person_data(item_data[4])[1]} (ID: {item_data[4]})")
+                item_note_widget.configure(text=f"Note: {item_data[5]}")
+            else:
+                item_name_widget.configure(text="No item selected")
+                item_state_widget.configure(text="State: n/a")
+                item_location_widget.configure(text="Location: n/a")
+                item_owner_widget.configure(text="Owner: n/a")
+                item_note_widget.configure(text="Note: n/a")
+
+        items_list.bind("<<ListboxSelect>>", load_item_data)
+
+        def load_items(event=None):
+            # get current query from search box (if there is one)
+            if search.get() == 'Search...':
+                search_query = ''
+            else:
+                search_query = search.get()
+
+            # filter Listbox items based on search query
+            items_list.delete(0, tk.END)
+            cur.execute("SELECT * FROM items WHERE name LIKE ? ORDER BY name", ('%' + search_query + '%',))
+            items = cur.fetchall()
+            for row in items:
+                # inserts each item name and ID in the listbox. ID is included because I could not think of
+                # a better way to later retrieve it when the user selects the item from the listbox, as
+                # the name by itself is not sufficient because it might not be unique in the database.
+                items_list.insert(tk.END, [row[1], f"(ID:{row[0]})"])
+        search_box.bind("<KeyRelease>", load_items)
+
+        load_items()
+        load_item_data()
         itemsmenu.mainloop()
 
 def main_menu():
