@@ -1,3 +1,11 @@
+NOTES ON FUNNY INEFFICIENCIES:
+
+   1. To retrieve the item ID from the UI list selection, I could only think of HAVING to include the ID in the list and then awkwardly extracting it by subtracting "(ID:)" that I had to add for clarity.
+
+    2. I realised too late I should have used two widgets instead of just one for item description. So e.g. "State: good" is only one widget. This meant that for using item values both for label widgets and other things (such as edit window messages) I had to use normal python variables and f-strings, instead of the less repetitive tkinter variables dynamically connected to widgets.
+
+    3. I built a function for the popup window when the user wants to edit a field, hoping it could be used for both items and people menu's. But since it has to know the ID of the currently selcted item/person, and the only way I could find was the sloppy way i described earlier from the listbox, that meant the function had to be within the menu function to know the ID. So I had to duplicate that one too...
+
 - Date of entry:
 - What I’ve worked on:
 - What problems I encountered:
@@ -14,10 +22,17 @@
 - What I’ve worked on: Developed basic functions to interact with the database. Developed a basic command line interface to quickly test my functions.
 - What problems I encountered: Some functions would not work, database would get locked.
 - What I learned: I learned how to use the python SQL library some more, as I wrongly assumed the syntax was the same as cs50's and that's why my code was not working. It was also my first time creating a command line interface.
-- Which resources did I use: python3 sqlite3 library, stackoverflow, https://medium.com/@abelzerihun/understanding-parameterized-queries-3c4d81acbf41.
+- Which resources did I use: python3 sqlite3 library, https://medium.com/@abelzerihun/understanding-parameterized-queries-3c4d81acbf41.
 
 - Date of entry: 19-05-2025
-- What I’ve worked on: Making a tkinter interface for browsing and editing the database. For now, only widgets with no functionalities yet.
-- What problems I encountered: Biggest problem was that the few widgets that referred to variables would not display those values. ChatGPT gave me some ideas for debugging. Turns out, it had to do with multiple tkinter windows being nested into one another. I solved it by assigning the appropriate object type of the second window from Tk() to Toplevel().
-- What I learned: How to make a basic tkinter interface: buttons, labels, dividers, grid management.
-- Which resources did I use: tkdocs.com & pythonguides.com for tkinter basics. ChatGPT for debugging, but not for writing the code itself.
+- What I’ve worked on: Making a tkinter interface for browsing and editing the database. For now, only widgets with no editing funcitonalities yet, only displaying item data.
+- What problems I encountered: Biggest problem was that the few widgets that referred to variables would not display those values. Turns out, it had to do with multiple tkinter windows being nested into one another. I solved it by assigning the appropriate object type of the second window from Tk() to Toplevel().
+- What I learned: How to make a basic tkinter interface: buttons, labels, dividers, grid management. How to make a searcbar in tkinter, and how to display a list of SQL entries in a tkinter listbox.
+- Which resources did I use: tkdocs.com & pythonguides.com for tkinter basics. I would use stack overflow only when I did not understand what tkdocs meant, or the interaction between tkinter features: so, for alternative explanations, but not for solving problems.
+
+- Date of entry: 22-05-2025
+- What I’ve worked on: buttons for editing item data from the UI.
+- What problems I encountered: After the user submits the edit, the box with the list of items and the widgets displaying the item data would not update. They would only do so after either re-selecting the item or typing something in the searchbar. I could not find a solution because calling the refresh function from the popup window for editing the values would not refresh the base window. One solution could have been a manual refresh button, but  I had already ran out of space and decided it was not a big enough issue to redesign the menu layout.
+- What I learned: nothing new today.
+- Which resources did I use:
+
