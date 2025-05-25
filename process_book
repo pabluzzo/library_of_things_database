@@ -37,7 +37,7 @@ NOTES ON FUNNY INEFFICIENCIES:
 - Which resources did I use:
 
 - Date of entry: 25-05-2025
-- What I’ve worked on: add item button, delete item button, polishing edit buttons, event logs
+- What I’ve worked on: add item button, delete item button, polishing edit buttons, event logs window
 - What problems I encountered: when the user selected something (e.g. a text to delete) it would remove the listbox selection. So I figured out a way to keep the last selected index in a global variable and call it back whenever the widgets were refreshed, so the user wouldn't have to find the list item every time they select something outside of the listbox.
 - What I learned: some UX design I guess, by testing the UI on myself pretending I didn't know how it worked, seeing if there was anything unintuitive.
 - Which resources did I use:

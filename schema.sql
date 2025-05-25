@@ -30,3 +30,8 @@ CREATE TABLE logs (
     event TEXT,
     PRIMARY KEY(id)
 );
+INSERT INTO people (name, contact, note) VALUES(
+    '.LIBRARY',
+    'info@libraryofthings.org',
+    'The object library itself.'
+);
