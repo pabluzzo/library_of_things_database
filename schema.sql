@@ -24,3 +24,9 @@ CREATE TABLE ownership (
     FOREIGN KEY(person_id) REFERENCES people(id),
     FOREIGN KEY(item_id) REFERENCES items(id)
 );
+CREATE TABLE logs (
+    id INTEGER,
+    time TEXT,
+    event TEXT,
+    PRIMARY KEY(id)
+);
