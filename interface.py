@@ -75,10 +75,6 @@ def get_item_data(id):
     owner = cur.execute("SELECT person_id FROM ownership WHERE item_id = ?", (id,)).fetchone()[0]
     return id, name, state, current_location, owner, note
 
-def edit_data(table, id, column, new_content):
-    cur.execute(f"UPDATE {table} SET {column} = ? WHERE id = ?", (new_content, id))
-    con.commit()
-
 def log_event(event_type, object_type, object_id=None, name=None, field=None, old_value=None, new_value=None):
     time = datetime.now().strftime("%Y-%m-%d %H:%M:%S") # get current date and time for log
     if event_type == 'add':
@@ -88,113 +84,6 @@ def log_event(event_type, object_type, object_id=None, name=None, field=None, ol
     elif event_type == 'edit':
         event = f'The {field} of {object_type} "{name}" (ID: {object_id}) has been changed from "{old_value}" to "{new_value}"'
     cur.execute(f"INSERT INTO logs (time, event) VALUES(?, ?)", (time, event)) # log event
-
-def commandline_menu():
-    """
-    This is a command line placeholder menu to test whether my functions work.
-    It is not meant to deal with invalid input.
-    """
-
-    on = 1
-    menu = 0
-    action = 0
-
-    while on == 1:
-        while menu == 0 and on == 1:
-            action = int(input("""
-What do you want to do?
-1 = Item actions
-2 = Person actions
-3 = Location & ownership
-0 = Exit
-Your answer: """))
-            if action == 0:
-                on = 0
-            else:
-                menu = action
-
-        while menu == 1:
-            action = int(input("""
-Item actions:
-1 = View all items
-2 = View item details
-3 = Add an item
-4 = Remove an item
-5 = Edit an item
-0 = Back to main menu
-Your answer: """))
-            if action == 0:
-                menu = 0
-            elif action == 1:
-                for line in cur.execute("SELECT * from items"):
-                    print(line)
-            elif action == 2:
-                print(get_item_data(int(input("Item ID: "))))
-            elif action == 3:
-                name = input("Item name: ")
-                state = int(input("Item state (1=good, 2=damaged, 3=lost, 4=disposed): "))
-                if state == 1:
-                    state = 'good'
-                elif state == 2:
-                    state = 'damaged'
-                elif state == 3:
-                    state = 'lost'
-                elif state == 4:
-                    state == 'disposed'
-                note = input("Item note: ")
-                add_item(name, state, note)
-            elif action == 4:
-                print("Action not supported yet")
-            elif action == 5:
-                print("Action not supported yet")
-            print("Action hopefully achieved!")
-            menu = 0
-
-        while menu == 2:
-            action = int(input("""
-Person actions:
-1 = View all people
-2 = Add a person
-3 = Remove a person
-4 = Edit a person
-0 = Back to main menu
-Your answer: """))
-            if action == 0:
-                menu = 0
-            elif action == 1:
-                for line in cur.execute('SELECT * FROM people'):
-                    print(line)
-            elif action == 2:
-                name = input('Persons name: ')
-                contact = input('Contact info: ')
-                note = input('Note: ')
-                add_person(name, contact, note)
-            elif action == 3:
-                print("Action not supported yet")
-            elif action == 4:
-                print("Action not supported yet")
-            print("Action hopefully achieved!")
-            menu = 0
-
-        while menu == 3:
-            action = int(input("""
-Location & ownership:
-1 = Edit an item's location ('possessor')
-2 = Edit an item's ownership
-0 = Back to main menu
-Your answer: """))
-            if action == 0:
-                menu = 0
-            elif action == 1:
-                item_id = int(input("Item ID: "))
-                person_id = int(input("New possessor's ID: "))
-                edit_location(item_id, person_id)
-            elif action == 2:
-                item_id = int(input("Item ID: "))
-                person_id = int(input("New owner's ID: "))
-                edit_ownership(item_id, person_id)
-            print("Action hopefully achieved!")
-            menu = 0
 
 def main_menu():
     root = tk.Tk()
@@ -209,7 +98,7 @@ def main_menu():
     ttk.Label(rootframe, text="Library of things", anchor="center", font=("Helvetica", 30)).grid(row=0)
     ttk.Button(rootframe, text="Items", command=items_menu).grid(row=1)
     ttk.Button(rootframe, text="People", command=people_menu).grid(row=2)
-    ttk.Button(rootframe, text="Event logs", command=event_logs).grid(row=3)
+    ttk.Button(rootframe, text="History of changes", command=event_logs).grid(row=3)
 
     rootframe.grid_columnconfigure(0, weight=1)
     for i in range(4):
@@ -220,6 +109,10 @@ def main_menu():
     root.mainloop()
 
 def items_menu():
+
+    # to keep track of current item selection across popups
+    global last_item_selection
+    last_item_selection = None
 
     def load_items(event=None):
         """
@@ -242,8 +135,6 @@ def items_menu():
             text = f"{row[1]} | (ID: {row[0]})"
             items_list.insert(tk.END, text)
 
-    global last_item_selection
-    last_item_selection = None
     def load_item_data(event=None):
         """
         Refreshes label widgets when a new item is selected
@@ -390,10 +281,117 @@ def items_menu():
         else:
             pass
 
-    def items_edit_person_button(): #TODO
+    def items_edit_person_button(field):
         """
         Called when user clicks on "edit" for either location or ownership field.
         """
+        global last_item_selection
+        selection = last_item_selection
+
+        if selection != None: # only open popup if something is selected
+            item_id = items_list.get(selection).split(" | ")[1].strip("(ID: )") # get item ID from database
+            if get_item_data(item_id)[1].startswith('DELETED'): # don't show edit window if item is deleted
+                return
+
+            popup = tk.Toplevel()
+            popup.geometry("400x525")
+            frame = tk.Frame(popup)
+            frame.pack(pady=5, fill=tk.X)
+
+            # get current value to display to user
+            if field == 'location':
+                popup.title("Edit location")
+                tk.Label(frame, text="Current location:", font=('Helvetica', 15)).pack(pady=10)
+                person_id = get_item_data(item_id)[3]
+            elif field == 'owner':
+                popup.title("Edit ownership")
+                tk.Label(frame, text="Current owner:", font=('Helvetica', 15)).pack(pady=10)
+                person_id = get_item_data(item_id)[4]
+
+            def load_people_popup(event=None):
+                """
+                Filters listbox based on user input in the searchbar.
+                """
+                # get current query from search box (if there is one)
+                if search.get() == 'Search...':
+                    search_query = ''
+                else:
+                    search_query = search.get()
+
+                people_list_popup.delete(0, tk.END)
+                # fill listbox excluding deleted people, the current person, and results not matching the search query
+                cur.execute("SELECT * FROM people WHERE name LIKE ? AND id != ? AND name NOT LIKE '%DELETED%' ORDER BY name", ('%' + search_query + '%', person_id))
+                people = cur.fetchall()
+                for row in people:
+                    # inserts each person name and ID in the listbox. ID is included because I could not think of
+                    # a better way to later retrieve it when the user selects the person from the listbox, as
+                    # the name by itself is not sufficient because it might not be unique in the database.
+                    text = f"{row[1]} | (ID: {row[0]})"
+                    people_list_popup.insert(tk.END, text)
+
+            # ui widgets
+            current_value = tk.StringVar()
+            current_value.set(get_person_data(person_id)[1] + f' (ID: {person_id})')
+            tk.Label(frame, textvariable=current_value).pack(pady=10)
+            tk.Label(frame, text="Change to:", font=('Helvetica', 15)).pack(pady=10)
+            tk.Label(frame, text="Note: changes will only be visible after\nclicking 'Refresh' next to the searchbar.").pack(pady=10)
+
+            # search box setup
+            search = tk.StringVar()
+
+            def search_focus_in(event):
+                if search_box.get() == "Search...":
+                    search_box.delete(0, tk.END)
+                    search_box.config(foreground="black")
+
+            def search_focus_out(event):
+                if search_box.get() == "":
+                    search_box.insert(0, "Search...")
+                    search_box.config(foreground="grey")
+
+            search_box = ttk.Entry(frame, textvariable=search)
+            search_box.pack(pady=10, padx=20, fill=tk.X)
+            search_box.insert(0, 'Search...')
+            search_box.config(foreground="grey")
+            search_box.bind("<FocusIn>", search_focus_in)
+            search_box.bind("<FocusOut>", search_focus_out)
+            search_box.bind("<KeyRelease>", load_people_popup) # bind load_logs function to searchbox when user types
+
+            # listbox
+            people_list_popup = tk.Listbox(frame)
+            people_list_popup.pack(pady=10, padx=20, fill=tk.X)
+
+            def edit_value():
+                """
+                Called when user clicks "Confirm" in the popup window.
+                Edits the value in the database and closes the popup window.
+                """
+                new_person_id = people_list_popup.get(people_list_popup.curselection()).split(" | ")[1].strip("(ID: )") # get id from user selection
+                if new_person_id:
+                    # update database
+                    if field == 'location':
+                        edit_location(item_id, new_person_id)
+                    elif field == 'owner':
+                        edit_ownership(item_id, new_person_id)
+                    con.commit()
+                    log_event(
+                        'edit',
+                        'ITEM',
+                        item_id,
+                        get_item_data(item_id)[1], # item's name
+                        field, # location / owner
+                        get_person_data(person_id)[1], # old person's name
+                        get_person_data(new_person_id)[1]
+                    ) # new person's name
+                    popup.destroy() # close popup
+                else:
+                    pass # do nothing in case input field is still empty
+
+            load_people_popup()
+            tk.Button(frame, text="Confirm", command=edit_value).pack(pady=10)
+            tk.Button(frame, text="Cancel", command=popup.destroy).pack(pady=5)
+        else:
+            pass
 
     itemsmenu = tk.Toplevel()
     itemsmenu.title("Items menu")
@@ -472,12 +470,12 @@ def items_menu():
     item_location_value = None
     item_location_widget = ttk.Label(itemsframe, anchor="w")
     item_location_widget.grid(row=3, column=3, columnspan=2, sticky="w")
-    ttk.Button(itemsframe, text="edit").grid(row=3, column=5)
+    ttk.Button(itemsframe, text="edit", command=lambda: items_edit_person_button("location")).grid(row=3, column=5)
 
     item_owner_value = None
     item_owner_widget = ttk.Label(itemsframe, anchor="w")
     item_owner_widget.grid(row=4, column=3, columnspan=2, sticky="w")
-    ttk.Button(itemsframe, text="edit").grid(row=4, column=5)
+    ttk.Button(itemsframe, text="edit", command=lambda: items_edit_person_button("owner")).grid(row=4, column=5)
 
     item_note_value = None
     item_note_widget = ttk.Label(itemsframe, anchor="w", justify="left", wraplength=200)
@@ -554,15 +552,27 @@ def people_menu():
             # assign data to widget textvariables
             person_name_value = person_data[1]
             person_contact_value = person_data[2]
-            person_borrowing_value = f"Nothing yet"
-            person_owns_value = f"Nothing yet"
             person_note_value = person_data[5]
+
+            person_borrowing_value = ""
+            for item in cur.execute('SELECT id, name FROM items WHERE id in (SELECT item_id FROM location WHERE person_id = ?)', (person_data[0],)).fetchall():
+                person_borrowing_value += f'{item[1]} (ID: {item[0]}), '
+            if len(person_borrowing_value) > 1:
+                person_borrowing_value = person_borrowing_value[:-2] # remove last ', '
+            else: person_borrowing_value = 'n/a' # return to n/a if person borrows no items
+
+            person_owns_value = "" # same process for owned items
+            for item in cur.execute('SELECT id, name FROM items WHERE id in (SELECT item_id FROM ownership WHERE person_id = ?)', (person_data[0],)).fetchall():
+                person_owns_value += f'{item[1]} (ID: {item[0]}), '
+            if len(person_owns_value) > 1:
+                person_owns_value = person_owns_value[:-2]
+            else: person_owns_value = 'n/a'
 
         # update widgets
         person_name_widget.configure(text=f"{person_name_value}")
-        person_contact_widget.configure(text=f"contact: {person_contact_value}")
-        person_borrowing_widget.configure(text=f"borrowing: {person_borrowing_value}")
-        person_owns_widget.configure(text=f"owns: {person_owns_value}")
+        person_contact_widget.configure(text=f"Contact: {person_contact_value}")
+        person_borrowing_widget.configure(text=f"Borrowing: {person_borrowing_value}") # -2 to remove the final ', '
+        person_owns_widget.configure(text=f"Owns: {person_owns_value}") # same here
         person_note_widget.configure(text=f"Note: {person_note_value}")
 
     def people_add_button(event=None):
@@ -746,16 +756,16 @@ def people_menu():
     ttk.Button(peopleframe, text="edit", command=lambda: people_edit_button("name")).grid(row=0, column=4, sticky="sw")
 
     person_contact_value = None
-    person_contact_widget = ttk.Label(peopleframe, anchor="w")
+    person_contact_widget = ttk.Label(peopleframe, anchor="w", justify="left", wraplength=200)
     person_contact_widget.grid(row=2, column=3, columnspan=2, sticky="w")
     ttk.Button(peopleframe, text="edit", command=lambda: people_edit_button("contact")).grid(row=2, column=5)
 
     person_borrowing_value = None
-    person_borrowing_widget = ttk.Label(peopleframe, anchor="w")
+    person_borrowing_widget = ttk.Label(peopleframe, anchor="w",  justify="left", wraplength=300)
     person_borrowing_widget.grid(row=3, column=3, columnspan=3, sticky="w")
 
     person_owns_value = None
-    person_owns_widget = ttk.Label(peopleframe, anchor="w")
+    person_owns_widget = ttk.Label(peopleframe, anchor="w", justify="left", wraplength=300)
     person_owns_widget.grid(row=4, column=3, columnspan=3, sticky="w")
 
     person_note_value = None
@@ -777,7 +787,7 @@ def people_menu():
 
 def event_logs():
     logsmenu = tk.Toplevel()
-    logsmenu.title("Event logs")
+    logsmenu.title("History of changes")
     logsmenu.geometry("700x700")
     logsmenu.grid_columnconfigure(0, weight=1)
     logsmenu.grid_rowconfigure(0, weight=1)
@@ -828,8 +838,6 @@ def event_logs():
 
     # listbox
     logs_list = tk.Listbox(logsframe)
-    # bind widget refresh to user selecting something in the listbox
-    logs_list.bind("<<ListboxSelect>>", load_logs)
     # resize Listbox
     logs_list.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 

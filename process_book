@@ -1,16 +1,4 @@
-NOTES ON FUNNY INEFFICIENCIES:
-
-   1. To retrieve the item ID from the UI list selection, I could only think of HAVING to include the ID in the list and then awkwardly extracting it by subtracting "(ID:)" that I had to add for clarity.
-
-    2. I realised too late I should have used two widgets instead of just one for item description. So e.g. "State: good" is only one widget. This meant that for using item values both for label widgets and other things (such as edit window messages) I had to use normal python variables and f-strings, instead of the less repetitive tkinter variables dynamically connected to widgets.
-
-    3. I built a function for the popup window when the user wants to edit a field, hoping it could be used for both items and people menu's. But since it has to know the ID of the currently selcted item/person, and the only way I could find was the sloppy way i described earlier from the listbox, that meant the function had to be within the menu function to know the ID. So I had to duplicate that one too...
-
-- Date of entry:
-- What I’ve worked on:
-- What problems I encountered:
-- What I learned:
-- Which resources did I use:
+Pablo's process book
 
 - Date of entry: 13-05-2025
 - What I’ve worked on: Creating a basic version of my database's schema, reading tkinter documentation to get started.
@@ -41,4 +29,10 @@ NOTES ON FUNNY INEFFICIENCIES:
 - What problems I encountered: when the user selected something (e.g. a text to delete) it would remove the listbox selection. So I figured out a way to keep the last selected index in a global variable and call it back whenever the widgets were refreshed, so the user wouldn't have to find the list item every time they select something outside of the listbox.
 - What I learned: some UX design I guess, by testing the UI on myself pretending I didn't know how it worked, seeing if there was anything unintuitive.
 - Which resources did I use:
+
+- Date of entry: 26-05-2025
+- What I’ve worked on: popup menu to select an item's new owner/borrower; displaying owned/borrowed items in the people menu
+- What problems I encountered: the popup widgets would not load--solved by changing their load method from .grid() to .pack(); the popup widgets would appear on the wrong window--fixed by creating a frame within the popup window and loading the widgets there; the changes in the database would not reflect
+- What I learned: how to make a popup menu with a list of items of which to select one. I also learned that to avoid a lot of the problems I've encountered, I could have just had all actions and widgets in a single window, instead of having multiple separated windows. This would have made it easier to write 'universal' functions and avoid a lot of copy and paste. However, because I was learning and reading documentation as I progressed through my project, I think I needed this first experience with tkinter to acquire hindsight. Next time I'll work with tkinter, I'll know better.
+- Which resources did I use: tkinter documentation, basic python documentation when I would forget basic things.
 
