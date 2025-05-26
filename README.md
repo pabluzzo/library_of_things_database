@@ -25,3 +25,4 @@ Additional notes:
 - The lists of items and people can be filtered by typing into a search bar.
 - The list of logs also has a search bar, which applies to the event description, but not its date.
 - Out-of-the-box, the database is empty except for one ‘person’: ‘.LIBRARY’ (ID: 1). This is meant to represent the library itself. Items ‘borrowed’ by .LIBRARY should be the ones currently in stock. .LIBRARY cannot be deleted through the UI, but its fields can be edited.
+- Deleted items / people are not actually deleted from the database, but their fields emptied out and their name changed to 'DELETED ITEM / PERSON'. Reason: sloppy solution to avoid issues with the UI and objects sometimes having the same ID as a deleted object. :/
