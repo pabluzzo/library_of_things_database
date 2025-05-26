@@ -32,6 +32,6 @@ CREATE TABLE logs (
 );
 INSERT INTO people (name, contact, note) VALUES(
     '.LIBRARY',
-    'info@libraryofthings.org',
+    'info@youraddress.com',
     'The object library itself. Items the library is "borrowing" are the ones in stock.'
 );

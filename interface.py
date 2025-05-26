@@ -4,17 +4,32 @@ from tkinter import ttk
 from tkinter import messagebox
 from datetime import datetime
 
-con = sqlite3.connect("library.db", timeout = 5)
-cur = con.cursor()
+con = sqlite3.connect("library.db", timeout = 5) # connect to database
+cur = con.cursor() # create cursor for executing SQL code
 
 def main():
 
     main_menu()
-    con.close()
+    con.close() # close connection to database
 
-"""
-General functions
-"""
+def log_event(event_type, object_type, object_id=None, name=None, field=None, old_value=None, new_value=None):
+    """
+    Logs an event into the logs table in the database as a date (YYYY-MM-DD HH-MM-SS),
+    plus a sentence describing the event.
+    """
+    time = datetime.now().strftime("%Y-%m-%d %H:%M:%S") # get current date and time for log
+
+    if event_type == 'add':
+        event = f'A new {object_type} has been added.'
+
+    elif event_type == 'delete':
+        event = f'{object_type} "{name}" (ID: {object_id}) has been deleted.'
+
+    elif event_type == 'edit':
+        event = f'The {field} of {object_type} "{name}" (ID: {object_id}) has been changed from "{old_value}" to "{new_value}"'
+
+    cur.execute(f"INSERT INTO logs (time, event) VALUES(?, ?)", (time, event)) # log event
+
 def add_person(name=None, contact=None, note=None):
     cur.execute("INSERT into people (name, contact, note) VALUES(?, ?, ?)", (name, contact, note))
     con.commit()
@@ -22,9 +37,9 @@ def add_person(name=None, contact=None, note=None):
 def add_item(name=None, state=None, note=None):
     cur.execute("INSERT into items (name, state, note) VALUES(?, ?, ?)", (name, state, note))
     con.commit()
-    item_id = cur.lastrowid
-    edit_ownership(item_id, 1) # sets default ownership to LIBRARY (ID: 1)
-    edit_location(item_id, 1) # sets default location to LIBRARY (ID: 1)
+    item_id = cur.lastrowid # retrieves item ID (its primary key)
+    edit_ownership(item_id, 1) # sets default ownership to .LIBRARY (ID: 1)
+    edit_location(item_id, 1) # sets default location to .LIBRARY (ID: 1)
 
 def remove(table, id):
     """
@@ -40,12 +55,18 @@ def remove(table, id):
     con.commit()
 
 def edit_ownership(item_id, person_id):
-    cur.execute("DELETE FROM ownership WHERE item_id = ?", (item_id,))
-    cur.execute("INSERT INTO ownership (item_id, person_id) VALUES(?, ?)", (item_id, person_id))
+    """
+    Changes an item's owner.
+    """
+    cur.execute("DELETE FROM ownership WHERE item_id = ?", (item_id,)) # deletes old ownership link between the item's ID and the old owner's
+    cur.execute("INSERT INTO ownership (item_id, person_id) VALUES(?, ?)", (item_id, person_id)) # sets new owner
     con.commit()
 
 def edit_location(item_id, person_id):
-    cur.execute("DELETE FROM location WHERE item_id = ?", (item_id,))
+    """
+    Changes an item's location.
+    """
+    cur.execute("DELETE FROM location WHERE item_id = ?", (item_id,)) # delete previous location link between item's ID and the old owner's
     cur.execute("INSERT INTO location (item_id, person_id) VALUES(?, ?)", (item_id, person_id))
     con.commit()
 
@@ -60,6 +81,10 @@ def get_datum(table, column, id):
         return "n/a"
 
 def get_person_data(id):
+    """
+    Returns a tuple with a person's id, name, borrowed items, owned items, and note.
+    The items are returned as a list of IDs.
+    """
     name = get_datum("people", "name", id)
     contact = get_datum("people", "contact", id)
     note = get_datum("people", "note", id)
@@ -68,22 +93,16 @@ def get_person_data(id):
     return id, name, contact, currently_borrowing, owned_items, note
 
 def get_item_data(id):
+    """
+    Returns a tuple with an item's id, name, state, current location, owner, and note.
+    Location and owner are the respective person's ID.
+    """
     name = get_datum("items", "name", id)
     state = get_datum("items", "state", id)
     note = get_datum("items", "note", id)
     current_location = cur.execute("SELECT person_id FROM location WHERE item_id = ?", (id,)).fetchone()[0]
     owner = cur.execute("SELECT person_id FROM ownership WHERE item_id = ?", (id,)).fetchone()[0]
     return id, name, state, current_location, owner, note
-
-def log_event(event_type, object_type, object_id=None, name=None, field=None, old_value=None, new_value=None):
-    time = datetime.now().strftime("%Y-%m-%d %H:%M:%S") # get current date and time for log
-    if event_type == 'add':
-        event = f'A new {object_type} has been added.'
-    elif event_type == 'delete':
-        event = f'{object_type} "{name}" (ID: {object_id}) has been deleted.'
-    elif event_type == 'edit':
-        event = f'The {field} of {object_type} "{name}" (ID: {object_id}) has been changed from "{old_value}" to "{new_value}"'
-    cur.execute(f"INSERT INTO logs (time, event) VALUES(?, ?)", (time, event)) # log event
 
 def main_menu():
     root = tk.Tk()
@@ -110,42 +129,40 @@ def main_menu():
 
 def items_menu():
 
-    # to keep track of current item selection across popups
+    # to later keep track of current item selection across popups
+    # and avoid widgets emptying out whenever the user selecs
+    # something which is not an item
     global last_item_selection
     last_item_selection = None
 
     def load_items(event=None):
         """
-        Filters listbox based on user input in the searchbar.
+        Refreshes item listbox and filters it based on user input in the searchbar.
         """
-        # get current query from search box (if there is one)
+        # get current query from searchbar
         if search.get() == 'Search...':
-            search_query = ''
+            search_query = '' # placeholder text means no actual query
         else:
-            search_query = search.get()
+            search_query = search.get() # get content from searchbar
 
-        # filter Listbox items based on search query
-        items_list.delete(0, tk.END)
-        cur.execute("SELECT * FROM items WHERE name LIKE ? AND name NOT LIKE '%DELETED%' ORDER BY name", ('%' + search_query + '%',))
+        items_list.delete(0, tk.END) # empty listbox
+        cur.execute("SELECT * FROM items WHERE name LIKE ? AND name NOT LIKE '%DELETED%' ORDER BY name", ('%' + search_query + '%',))   # get list of non-deleted items whose name matches the query
         items = cur.fetchall()
         for row in items:
-            # inserts each item name and ID in the listbox. ID is included because I could not think of
-            # a better way to later retrieve it when the user selects the item from the listbox, as
-            # the name by itself is not sufficient because it might not be unique in the database.
-            text = f"{row[1]} | (ID: {row[0]})"
-            items_list.insert(tk.END, text)
+            text = f"{row[1]} | (ID: {row[0]})" # name and ID, respecively
+            items_list.insert(tk.END, text) # insert item content in the listbox
 
     def load_item_data(event=None):
         """
-        Refreshes label widgets when a new item is selected
+        Refreshes label widgets based on the listbox's current selection.
         """
         global last_item_selection
 
         try:
             selection = items_list.curselection()[0] # get index of currently selected item
-            last_item_selection = selection # log last item selection as global variable
+            last_item_selection = selection # record this last item selection in the global variable
         except: # if nothing is selected:
-            if last_item_selection == None: # if nothing has been selected yet, ideally only when menu is first opened
+            if last_item_selection == None: # if nothing has been selected yet. Ideally only when menu is first opened
                 item_name_value = "No item selected"
                 item_state_value = "n/a"
                 item_location_value = "n/a"
@@ -155,13 +172,12 @@ def items_menu():
                 selection = last_item_selection
 
         if last_item_selection != None: # to not trigger this when menu first opens
-            item_data = get_item_data(items_list.get(selection).split(" | ")[1].strip("(ID: )")) # get its data
-
-            # assign data to widget textvariables
+            item_data = get_item_data(items_list.get(selection).split(" | ")[1].strip("(ID: )")) # get the selected item's data
+            # unpack the item's data
             item_name_value = item_data[1]
             item_state_value = item_data[2]
-            item_location_value = f"{get_person_data(item_data[3])[1]} (ID: {item_data[3]})"
-            item_owner_value = f"{get_person_data(item_data[4])[1]} (ID: {item_data[4]})"
+            item_location_value = f"{get_person_data(item_data[3])[1]} (ID: {item_data[3]})" # get borrower's ID from the item's data, then their name
+            item_owner_value = f"{get_person_data(item_data[4])[1]} (ID: {item_data[4]})" # same for owner
             item_note_value = item_data[5]
 
         # update widgets
@@ -173,45 +189,47 @@ def items_menu():
 
     def items_add_button(event=None):
         """
+        Bound to the button 'Add item'.
         Adds a new dummy item to the database, and automatically selects it for the user
-        to edit its fields. By default, the item's owner and location is the library.
-        If a dummy item already exists, it get selected without creating yet another one.
+        to edit its fields. By default, the library is the new item's owner and location.
+        If a dummy item already exists, it gets selected without creating yet another one.
         """
 
-        # check if a NEW ITEM already exists (to avoid user creating multiple empty items)
-        new_items = cur.execute("SELECT COUNT(name) FROM items WHERE name = 'NEW ITEM'").fetchone()[0]
-        if new_items == 0:
+        new_items = cur.execute("SELECT COUNT(name) FROM items WHERE name = 'NEW ITEM'").fetchone()[0] # get count of exisitng NEW ITEMs
+        if new_items == 0: # only add a new item if there are no NEW ITEMs already in the list
             add_item('NEW ITEM', 'n/a', 'n/a')
             log_event('add', 'ITEM')
             load_items()
 
         # find new item in listbox and select it
         index = None
-        for i in range(items_list.size()):
-            if items_list.get(i).startswith('NEW ITEM'):
+        for i in range(items_list.size()): # loop over items in the list
+            if items_list.get(i).startswith('NEW ITEM'): # finds NEW ITEM
                 index = i
                 break
         items_list.select_clear(0, tk.END) # unselect current item
         items_list.select_set(index) # select NEW ITEM
         items_list.activate(index) # highlight it
         items_list.see(index) # scroll to it
-        items_list.event_generate("<<ListboxSelect>>") # refresh widgets. I did not use load_item_data() because
+        items_list.event_generate("<<ListboxSelect>>")  # refresh widgets. I did not use load_item_data() because
                                                         # for some reason it would not work. If I instead replicate
                                                         # the event of the user clicking on the listbox, it does. (??)
 
     def items_edit_button(column):
         """
-        Called when user clicks "edit" next to a field.
+        Called when user clicks "edit" next to a field ('column' in the function argument).
         Opens a popup window for the user to enter the new value, while displaying the current value on top.
         """
         global last_item_selection
         selection = last_item_selection
-        if selection != None:
+
+        if selection != None: # to not run when no item has been selected yet
             id = items_list.get(selection).split(" | ")[1].strip("(ID: )") # get item ID from database
 
             if get_item_data(id)[1].startswith('DELETED'): # don't show edit window if item is deleted
                 return
 
+            # open popup
             popup = tk.Toplevel()
             popup.title("Edit value")
             popup.geometry("400x400")
@@ -220,13 +238,15 @@ def items_menu():
             current_value = tk.StringVar()
             current_value.set(cur.execute(f"SELECT {column} FROM items WHERE id = ?", (id,)).fetchone()[0])
 
-            # ui widgets
             tk.Label(popup, text="Current value", font=('Helvetica', 15)).pack(pady=10)
             tk.Label(popup, textvariable=current_value).pack(pady=10)
             tk.Label(popup, text="Enter the new value:", font=('Helvetica', 15)).pack(pady=10)
+
+            # entry widget
             entry = tk.Text(popup, height=3, width=40, font=('Helvetica', 12))
-            entry.insert("1.0", current_value.get())
+            entry.insert("1.0", current_value.get()) # insert current value in the entry widget
             entry.pack(pady=10)
+
             tk.Label(popup, text="Note: changes will only be visible after clicking 'Refresh'\nnext to the searchbar. If you are editing something's name,\nsomething else might get selected when you refresh\nbecause the alphabetical order has changed. Sorry :/").pack(pady=10)
 
             def edit_value(id, column):
@@ -234,12 +254,12 @@ def items_menu():
                 Called when user clicks "Confirm" in the popup window.
                 Edits the value in the database and closes the popup window.
                 """
-                new_value = entry.get("1.0", tk.END).strip() # get new value from user input
+                new_value = entry.get("1.0", tk.END).strip() # get new value from user input in the entry widget
                 if new_value:
-                    # get data for event log
+                    # get data for event log, then log event
                     name = cur.execute(f"SELECT name FROM items WHERE id = ?", (id,)).fetchone()[0]
                     old_value = cur.execute(f"SELECT {column} FROM items WHERE id = ?", (id,)).fetchone()[0]
-                    log_event('edit', 'ITEM', id, name, column, old_value, new_value) # log event
+                    log_event('edit', 'ITEM', id, name, column, old_value, new_value)
 
                     cur.execute(f"UPDATE items SET {column} = ? WHERE id = ?", (new_value, id)) # update database
                     con.commit()
@@ -256,26 +276,25 @@ def items_menu():
         """
         Deletes currently selected item with a confirmation popup.
         """
-        # check if item is selected
         global last_item_selection
         selection = last_item_selection
-        if selection != None:
+
+        if selection != None: # to not run this if nothing has been selcted yet
             id = items_list.get(selection).split(" | ")[1].strip("(ID: )") # get item ID from database
 
-            if get_item_data(id)[1].startswith('DELETED'):
+            if get_item_data(id)[1].startswith('DELETED'): # if item is already deleted, show warning message
                 messagebox.showwarning("Warning", 'Item already deleted. To make it disappear from the list, click on "Refresh" next to the searchbar.')
             else:
+                # open popup
                 popup = tk.Toplevel()
                 popup.title("Confirm deletion")
                 popup.geometry("300x200")
 
-                # ui widgets
-                tk.Label(popup, text="Are you sure you want\nto delete this item?", font=('Helvetica', 15)).pack(pady=10)
-
-                def delete(id):
+                def delete(id): # called by confirmation button
                     remove('items', id)
                     popup.destroy()
 
+                tk.Label(popup, text="Are you sure you want\nto delete this item?", font=('Helvetica', 15)).pack(pady=10)
                 tk.Button(popup, text="Confirm", command=lambda: delete(id)).pack(pady=10)
                 tk.Button(popup, text="Cancel", command=popup.destroy).pack(pady=5)
         else:
@@ -293,12 +312,14 @@ def items_menu():
             if get_item_data(item_id)[1].startswith('DELETED'): # don't show edit window if item is deleted
                 return
 
+            # open popup
             popup = tk.Toplevel()
             popup.geometry("400x525")
+            # include a frame to make searchbar & listbox widgets work
             frame = tk.Frame(popup)
             frame.pack(pady=5, fill=tk.X)
 
-            # get current value to display to user
+            # get current borrower/owner's ID
             if field == 'location':
                 popup.title("Edit location")
                 tk.Label(frame, text="Current location:", font=('Helvetica', 15)).pack(pady=10)
@@ -310,7 +331,7 @@ def items_menu():
 
             def load_people_popup(event=None):
                 """
-                Filters listbox based on user input in the searchbar.
+                Filters popup listbox based on user input in the searchbar.
                 """
                 # get current query from search box (if there is one)
                 if search.get() == 'Search...':
@@ -323,32 +344,25 @@ def items_menu():
                 cur.execute("SELECT * FROM people WHERE name LIKE ? AND id != ? AND name NOT LIKE '%DELETED%' ORDER BY name", ('%' + search_query + '%', person_id))
                 people = cur.fetchall()
                 for row in people:
-                    # inserts each person name and ID in the listbox. ID is included because I could not think of
-                    # a better way to later retrieve it when the user selects the person from the listbox, as
-                    # the name by itself is not sufficient because it might not be unique in the database.
                     text = f"{row[1]} | (ID: {row[0]})"
                     people_list_popup.insert(tk.END, text)
 
             # ui widgets
             current_value = tk.StringVar()
-            current_value.set(get_person_data(person_id)[1] + f' (ID: {person_id})')
+            current_value.set(get_person_data(person_id)[1] + f' (ID: {person_id})') # display current owner/borrower's name & ID
             tk.Label(frame, textvariable=current_value).pack(pady=10)
             tk.Label(frame, text="Change to:", font=('Helvetica', 15)).pack(pady=10)
-            tk.Label(frame, text="Note: changes will only be visible after\nclicking 'Refresh' next to the searchbar.").pack(pady=10)
 
-            # search box setup
+            # search box setup. Similar to
             search = tk.StringVar()
-
             def search_focus_in(event):
                 if search_box.get() == "Search...":
                     search_box.delete(0, tk.END)
                     search_box.config(foreground="black")
-
             def search_focus_out(event):
                 if search_box.get() == "":
                     search_box.insert(0, "Search...")
                     search_box.config(foreground="grey")
-
             search_box = ttk.Entry(frame, textvariable=search)
             search_box.pack(pady=10, padx=20, fill=tk.X)
             search_box.insert(0, 'Search...')
@@ -381,30 +395,33 @@ def items_menu():
                         get_item_data(item_id)[1], # item's name
                         field, # location / owner
                         get_person_data(person_id)[1], # old person's name
-                        get_person_data(new_person_id)[1]
-                    ) # new person's name
+                        get_person_data(new_person_id)[1] # new person's name
+                    )
                     popup.destroy() # close popup
                 else:
                     pass # do nothing in case input field is still empty
 
             load_people_popup()
+            tk.Label(frame, text="Note: changes will only be visible after\nclicking 'Refresh' next to the searchbar.").pack(pady=10)
             tk.Button(frame, text="Confirm", command=edit_value).pack(pady=10)
             tk.Button(frame, text="Cancel", command=popup.destroy).pack(pady=5)
         else:
             pass
 
+    # window setup
     itemsmenu = tk.Toplevel()
     itemsmenu.title("Items menu")
     itemsmenu.geometry("700x400")
     itemsmenu.grid_columnconfigure(0, weight=1)
     itemsmenu.grid_rowconfigure(0, weight=1)
 
+    # frame setup (where widgets actually are)
     itemsframe = ttk.Frame(itemsmenu, padding="10")
     itemsframe.grid(column=0, row=0, sticky="nwes")
     for i in range(5):
-        itemsframe.grid_columnconfigure(i, weight=1)
+        itemsframe.grid_columnconfigure(i, weight=1) # make columns flexible
 
-    # adjust grid size
+    # adjust column sizes
     itemsframe.grid_columnconfigure(0, weight=0, minsize=200)
     itemsframe.grid_columnconfigure(1, weight=0, minsize=100)
     itemsframe.grid_columnconfigure(2, weight=0, minsize=50)
@@ -417,44 +434,57 @@ def items_menu():
     ttk.Button(itemsframe, text="+ New item", command=items_add_button).grid(row=0, column=1)
     tk.Button(itemsframe, text="Delete\nitem", fg="red", anchor="center", command=items_remove_button).grid(row=0, column=5, sticky="s")
 
-    # search box & functions for placeholder "Search..." text
+    # search bar setup
     search = tk.StringVar()
     def search_focus_in(event):
+        """
+        Triggered when user selects the searchbar.
+        Removes placeholder text and sets font color to black.
+        """
         if search_box.get() == "Search...":
             search_box.delete(0, tk.END)
             search_box.config(foreground="black")
     def search_focus_out(event):
+        """
+        Triggered when user de-selects the searchbar, and the searchbar is empty.
+        Sets font color back to grey and adds placeholder text.
+        """
         if search_box.get() == "":
             search_box.insert(0, "Search...")
             search_box.config(foreground="grey")
-    search_box = ttk.Entry(itemsframe, textvariable=search)
+    search_box = ttk.Entry(itemsframe, textvariable=search) # create widget
     search_box.grid(row=1, column=0, sticky="we")
     search_box.insert(0, 'Search...')
     search_box.config(foreground="grey")
     search_box.bind("<FocusIn>", search_focus_in)
     search_box.bind("<FocusOut>", search_focus_out)
-    # bind load_items function to searchbox when user types
-    search_box.bind("<KeyRelease>", load_items)
+    search_box.bind("<KeyRelease>", load_items) # refresh items list (load_items) whenever user types something in the searchbar
 
-    # listbox
-    items_list = tk.Listbox(itemsframe)
+    # items list setup
+    items_list = tk.Listbox(itemsframe) # create widget
     items_list.grid(row=2, column=0, columnspan=2, rowspan=5, sticky="nwes")
-    # bind widget refresh to user selecting something in the listbox
-    items_list.bind("<<ListboxSelect>>", load_item_data)
+    items_list.bind("<<ListboxSelect>>", load_item_data) # bind widget refresh to user selecting something in the listbox
 
     def manual_refresh():
+        """
+        Called by user clicking on 'Refresh' button.
+        Refreshes widgets based on last-selected item from the listbox.
+        """
         global last_item_selection
         try:
-            selection = last_item_selection
+            selection = last_item_selection # get last-selected item
             try:
-                items_list.select_set(selection)
+                items_list.select_set(selection) # force listbox selection matching index from last item
             except:
                 items_list.select_set(selection - 1) # in case the selected item was last of the listbox after deleting an item
         except:
-            pass
+            pass # if no item has been selected yet
         load_items()
         load_item_data()
     ttk.Button(itemsframe, text="Refresh", command=manual_refresh).grid(row=1, column=1)
+
+    # Set up of field labels & respective edit buttons
+    # the values are None because they'll be filled later by load_item_data()
 
     ttk.Label(itemsframe, text="Name:").grid(row=0, column=3, sticky="sw")
     item_name_value = None
@@ -497,7 +527,9 @@ def items_menu():
 def people_menu():
     """
     WARNING TO SCIENTIFIC PROGRAMMING STAFF: people_menu is basically a copy of items_menu but with fewer features.
-    Don't waste your time checking it, it's literally identical.
+    Don't waste your time checking it, it's almost identical. The only substantial difference is in lines 589-603,
+    because displaying owned/borrowed items is more complex than just extracting a datum with get_person_data().
+
     I know it's veeery sloppy, but I realised too late it would have been better to just have every menu in one single
     window, with maybe a button to switch between items. I could only make few 'universal' functions because the rest
     would need to refer to things within the window.
@@ -555,13 +587,15 @@ def people_menu():
             person_note_value = person_data[5]
 
             person_borrowing_value = ""
+            # loop over borrowed items and add them to the textvariable
             for item in cur.execute('SELECT id, name FROM items WHERE id in (SELECT item_id FROM location WHERE person_id = ?)', (person_data[0],)).fetchall():
-                person_borrowing_value += f'{item[1]} (ID: {item[0]}), '
-            if len(person_borrowing_value) > 1:
+                person_borrowing_value += f'{item[1]} (ID: {item[0]}), ' # add item name and ID
+            if len(person_borrowing_value) > 1: # check if the person borrows any items at all
                 person_borrowing_value = person_borrowing_value[:-2] # remove last ', '
-            else: person_borrowing_value = 'n/a' # return to n/a if person borrows no items
+            else: person_borrowing_value = 'n/a' # return to n/a if person is borrowing no items
 
-            person_owns_value = "" # same process for owned items
+            person_owns_value = ""
+            # same process for owned items
             for item in cur.execute('SELECT id, name FROM items WHERE id in (SELECT item_id FROM ownership WHERE person_id = ?)', (person_data[0],)).fetchall():
                 person_owns_value += f'{item[1]} (ID: {item[0]}), '
             if len(person_owns_value) > 1:
@@ -786,12 +820,14 @@ def people_menu():
     peoplemenu.mainloop()
 
 def event_logs():
+    # window setup
     logsmenu = tk.Toplevel()
     logsmenu.title("History of changes")
     logsmenu.geometry("700x700")
     logsmenu.grid_columnconfigure(0, weight=1)
     logsmenu.grid_rowconfigure(0, weight=1)
 
+    # frame setup to make searchbar and listbox work
     logsframe = ttk.Frame(logsmenu, padding="10")
     logsframe.grid(column=0, row=0, sticky="nwes")
 
@@ -800,6 +836,9 @@ def event_logs():
     logsframe.grid_rowconfigure(1, weight=1)
 
     def load_logs(event=None):
+        """
+        Refreshes logs list based on search query. Similar to load_items().
+        """
         # get current query from search box (if there is one)
         if search_event.get() == 'Search event...':
             search_event_query = ''
